@@ -150,6 +150,36 @@ class _Fuse_Block(nn.Module):
         out = (1 - alpha) * out0 + alpha * out1
         return out
 
+class SELayer(nn.Module):
+    def __init__(self, channel, reduction=16):
+        super(SELayer, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(channel, channel // reduction, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(channel // reduction, channel, bias=False),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1)
+        return x * y.expand_as(x)
+
+
+class MixUP(nn.Module):
+    def __init__(self, channel):
+        super(MixUP, self).__init__()
+        self.SE = SELayer(channel)
+
+    def forward(self, x, fea):
+        x1 = self.SE(x)
+        x2 = self.SE(fea)
+        out = x1 + x2
+        return out
+
+
 class Generator(nn.Module):
     def __init__(self, num_blocks=5, ngf=16, num_layers=4, delta=16, num_scales=3, kdim=512, moving_average_rate=0.999):
         super().__init__()
@@ -165,14 +195,15 @@ class Generator(nn.Module):
             cc += delta
         #                           64     512            0.999
         # self.memory = _Memory_Block(cc,   kdim,    moving_average_rate)
-        
+        self.MixUp = nn.Sequential()
         self.dec = nn.ModuleDict()
         self.fuse = nn.ModuleDict()
         for i in range(num_blocks):
             self.dec['dec{}'.format(i)] = make_layer(_Residual_Block, num_layers, cc, cc-delta, upsample=i>num_blocks-num_scales-1)
             cc -= delta
             if i < num_blocks-1:
-                self.fuse['fuse{}'.format(i)] = _Fuse_Block(cc, cc)
+                self.MixUp.append(MixUP(cc))
+                # self.fuse['fuse{}'.format(i)] = _Fuse_Block(cc, cc)
                
         self.tail = nn.Conv2d(ngf, 3, 3, 1, 1)
     
@@ -191,7 +222,8 @@ class Generator(nn.Module):
         res = res[::-1]
         x = self.dec['dec0'](x)
         for i in range(self.num_blocks-1):
-            x = self.fuse['fuse{}'.format(i)](x, res[i+1])
+            # x = self.fuse['fuse{}'.format(i)](x, res[i+1])
+            x = self.MixUp[i](x, res[i+1])
             x = self.dec['dec{}'.format(i+1)](x)
 
         x = xi - x
