@@ -1,0 +1,9 @@
+包含memory bank :
+	不好训练，epoch在100内PSNR22.0+
+
+不包含memory bank（加BN层） :
+	使用fuseBlock：100epochPSNR到21.0+
+	不使用fuseBlock：100epochPSNR到20.0+    
+		           Gen:  2,790,019 total parameters , 	Dis: 3,237,298 total parameters.
+		将upSample替换为膨胀卷积：
+			Gen:  2,856,979 total parameters. 	Dis: 3,237,298 total parameters.

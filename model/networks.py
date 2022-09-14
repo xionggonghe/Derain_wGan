@@ -27,10 +27,13 @@ class _Residual_Block(nn.Module):
             self.translation = nn.Conv2d(in_planes, out_planes, 1, 1, 0, bias=False, groups=groups)
         else:
             self.translation = None
+        if self.upsample is True:
+            self.UPConv = nn.ConvTranspose2d(in_planes, in_planes, kernel_size=3, stride=2, padding=1, output_padding=1)
     
     def forward(self, x):
         if self.upsample:
-            x = F.interpolate(x, scale_factor=2, mode='bilinear')
+            x = self.UPConv(x)
+            # x = F.interpolate(x, scale_factor=2, mode='bilinear')
     
         identity = x
         out = self.conv1(x)        
@@ -174,8 +177,10 @@ class MixUP(nn.Module):
         self.SE = SELayer(channel)
 
     def forward(self, x, fea):
-        x = torch.stack([x, fea], dim=1)
-        out = self.SE(x)
+        x = torch.cat([x, fea], dim=1)
+        out0 = self.SE(x)
+        out0 = torch.split(out0, [fea.shape[1], fea.shape[1]], dim=1)
+        out = out0[0] + out0[1]
         return out
 
 

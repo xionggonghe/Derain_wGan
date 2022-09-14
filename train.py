@@ -11,6 +11,8 @@ from model.networks import Generator, Discriminator
 from utils.data_RGB import get_training_data, get_validation_data
 # from losses import SupConLoss
 from utils.PSNR import torchPSNR as PSNR
+from torch.utils.tensorboard import SummaryWriter
+import torchvision
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -73,11 +75,6 @@ Vaild_dataset = get_validation_data(Vaild_dir, {'patch_size': patch_size})
 Vaild_loader = torch.utils.data.DataLoader(dataset=Vaild_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=0,
                                            drop_last=False, pin_memory=True)
 
-
-# def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
-#     torch.save(state, filename)
-#     if is_best:
-#         shutil.copyfile(filename, 'model_best.pth.tar')
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -181,6 +178,20 @@ def Count_DisAdversarialLoss(discriminator, gen_imgs, Rain_img, Norain_img):
     Loss = Loss_Vector + Loss_Classfier + 0.5 * Loss_feas
     return Loss
 
+# Tensorboard
+# images = torch.rand([3, 128, 128])
+
+writer = SummaryWriter('runs/experiment_1')
+# # create grid of images
+# img_grid = torchvision.utils.make_grid(images)
+# # write to tensorboard
+# writer.add_image('four_fashion_mnist_images', img_grid)
+
+images = torch.rand([1, 3, 128, 128])
+net = Generator().to(device)
+writer.add_graph(net, images)
+writer.close()
+
 
 for epoch in range(1, NUM_EPOCHS):
     # batch_time = AverageMeter('Time', ':6.3f')
@@ -220,7 +231,8 @@ for epoch in range(1, NUM_EPOCHS):
         g_loss.backward(retain_graph=True)
 
         # lossesGen.update(g_loss.item(), images[0].size(0))
-        Psnr.update(PSNR(Norain_img, gen_imgs.detach()).mean().item())
+        psnr = PSNR(Norain_img, gen_imgs.detach()).mean().item()
+        Psnr.update(psnr)
 
         # -----------------------------------------------------------------------------------------
         #  Train Discriminator
@@ -239,6 +251,16 @@ for epoch in range(1, NUM_EPOCHS):
         # batch_time.update(time.time() - end)
         Lr.update(optimizer_G.state_dict()['param_groups'][0]['lr'])
         progress.display(i)
+        schedulerGen.step(psnr)
+        schedulerDis.step(psnr)
+        with torch.no_grad():
+            writer.add_scalar('Gen loss',
+                          g_loss,
+                          epoch * len(train_loader) + i)
+            writer.add_scalar('Dis loss',
+                              d_loss,
+                              epoch * len(train_loader) + i)
+
 
     # schedulerGen.step()
     # schedulerDis.step()
@@ -256,34 +278,22 @@ for epoch in range(1, NUM_EPOCHS):
 
                 with torch.no_grad():
                     restored = generator(input_)
-
+                print("===========")
                 for res, tar in zip(restored, target):
-                    psnr_val_rgb.append(PSNR(res, tar))
-                psnr = PSNR(res, tar)
-
-
+                    psnr = PSNR(res, tar)
+                    print("PSNR: ", psnr)
+                    psnr_val_rgb.append(psnr)
             if epoch % 10 == 0:
                 torch.save({'state_dictG': generator.state_dict(),
                             'state_dictD': discriminator.state_dict(),
                             }, os.path.join(model_dir, "model2_{}.pth".format(epoch)))
-    schedulerGen.step(psnr)
-    schedulerDis.step(psnr)
+            print("----------------------------------------------")
 
 
-
-    #
-    # print("------------------------------------------------------------------")
-    #     print("Epoch: {}\tTime: {:.4f}\tLoss: {:.4f}\tLearningRate {:.8f}".format(epoch, time.time() - epoch_start_time,
-    #                                                                               epoch_loss, scheduler.get_lr()[0]))
-    #     print("------------------------------------------------------------------")
-    #
-    #     torch.save({'epoch': epoch,
-    #                 'state_dict': model.state_dict(),
-    #                 'optimizer': optimizer.state_dict()
-    #                 }, os.path.join(model_dir, "model_latest.pth"))
-
-
-
+"""
+TensorBoard
+显示命令：tensorboard --logdir=runs
+"""
 
 
 
