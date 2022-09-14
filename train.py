@@ -122,9 +122,9 @@ def Count_GenAdversarialLoss(discriminator, gen_imgs, Rain_img, Norain_img):
     Vector_gen, Classfier_gen, fea_gen = discriminator(gen_imgs)
     Vector_Rain, Classfier_Rain, fea_Rain = discriminator(Rain_img)
     Vector_Norain, Classfier_Norain, fea_Norain = discriminator(Norain_img)
-    Loss_VectorP = adversarial_loss[0](Vector_gen, Vector_Rain).sum(0)  # CosineSimilarity
+    Loss_VectorP = adversarial_loss[0](Vector_gen, Vector_Norain).sum(0)  # CosineSimilarity
     Loss_VectorN = adversarial_loss[0](Vector_gen, Vector_Rain).sum(0)  # CosineSimilarity
-    Loss_Vector = Loss_VectorP / (Loss_VectorP + Loss_VectorN)
+    Loss_Vector = Loss_VectorN / (Loss_VectorP + Loss_VectorN)
 
     labels_True = torch.ones([Classfier_gen.shape[0]]).to(device)
     labels_False = torch.zeros([Classfier_gen.shape[0]]).to(device)
@@ -138,7 +138,7 @@ def Count_GenAdversarialLoss(discriminator, gen_imgs, Rain_img, Norain_img):
         Loss_feas = Loss_feas + Weight[i] * adversarial_loss[2](fea_gen[i], fea_Norain[i])  # L1Loss
 
     Loss_L1 = adversarial_loss[3](gen_imgs, Norain_img)
-    Loss = 0.5 * Loss_Vector + Loss_Classfier + 0.5 * Loss_feas + Loss_L1
+    Loss = Loss_Vector + Loss_Classfier + Loss_feas + Loss_L1
     return Loss
 
 
@@ -158,24 +158,9 @@ def Count_DisAdversarialLoss(discriminator, gen_imgs, Rain_img, Norain_img):
                      adversarial_loss[1](Classfier_Norain, labels_N)
     Loss_feas = 0.0
     for i in range(len(fea_gen)):
-        Loss_feas = Loss_feas + Weight[i] * adversarial_loss[2](fea_gen[i], fea_Norain[i].detach())  # L1Loss
+        Loss_feas = Loss_feas - Weight[i] * adversarial_loss[2](fea_gen[i], fea_Norain[i].detach())  # L1Loss
 
-    # fea_SupDic = {0: Vector_Rain, 1: Vector_Norain, 2: Vector_gen}
-    # index = [0, 1, 2]
-    # random.shuffle(index)
-    # fea_Sup = torch.cat([fea_SupDic[index[0]], fea_SupDic[index[1]], fea_SupDic[index[2]]], dim=0)
-    # fea_Sup = torch.unsqueeze(fea_Sup, dim=1)
-    # fea_labelsList = []
-    # for i in range(len(index)):
-    #     if index[i]%2 == 0:
-    #         fea_labelsList.append(torch.zeros([Vector_Rain.shape[0]]))
-    #     else:
-    #         fea_labelsList.append(torch.ones([Vector_Rain.shape[0]]))
-    # fea_labels = torch.cat([fea_labelsList[0], fea_labelsList[1], fea_labelsList[2]], dim=0).to(device)
-    #
-    # Loss_Sup = adversarial_loss[3](fea_Sup, fea_labels)
-
-    Loss = Loss_Vector + Loss_Classfier + 0.5 * Loss_feas
+    Loss = Loss_Vector + Loss_Classfier + Loss_feas
     return Loss
 
 # Tensorboard
@@ -260,6 +245,12 @@ for epoch in range(1, NUM_EPOCHS):
             writer.add_scalar('Dis loss',
                               d_loss,
                               epoch * len(train_loader) + i)
+            writer.add_scalar('Gen Lr: ',
+                              optimizer_G.state_dict()['param_groups'][0]['lr'],
+                              epoch * len(train_loader) + i)
+            writer.add_scalar('Dis Lr: ',
+                              optimizer_D.state_dict()['param_groups'][0]['lr'],
+                              epoch * len(train_loader) + i)
 
 
     # schedulerGen.step()
@@ -278,10 +269,10 @@ for epoch in range(1, NUM_EPOCHS):
 
                 with torch.no_grad():
                     restored = generator(input_)
-                print("===========")
+                # print("===========")
                 for res, tar in zip(restored, target):
                     psnr = PSNR(res, tar)
-                    print("PSNR: ", psnr)
+                    # print("PSNR: ", psnr)
                     psnr_val_rgb.append(psnr)
             if epoch % 10 == 0:
                 torch.save({'state_dictG': generator.state_dict(),
