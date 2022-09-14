@@ -19,7 +19,8 @@ class _Residual_Block(nn.Module):
         middle_planes = (in_planes if in_planes > out_planes else out_planes) if wide_width else out_planes
         
         self.conv1 = nn.Conv2d(in_planes, middle_planes, 3, 1, 1, bias=False, groups=groups)
-        self.relu1 = nn.LeakyReLU(0.02, inplace=True)        
+        self.relu1 = nn.LeakyReLU(0.02, inplace=True)
+        self.BN = nn.BatchNorm2d(middle_planes, eps=0.001)
         self.conv2 = nn.Conv2d(middle_planes, out_planes, 3, 1, 1, bias=False, groups=groups)
                 
         if in_planes != out_planes:            
@@ -32,10 +33,9 @@ class _Residual_Block(nn.Module):
             x = F.interpolate(x, scale_factor=2, mode='bilinear')
     
         identity = x
-
         out = self.conv1(x)        
         out = self.relu1(out)
-
+        out = self.BN(out)
         out = self.conv2(out)
         
         if self.translation is not None:
@@ -174,9 +174,8 @@ class MixUP(nn.Module):
         self.SE = SELayer(channel)
 
     def forward(self, x, fea):
-        x1 = self.SE(x)
-        x2 = self.SE(fea)
-        out = x1 + x2
+        x = torch.stack([x, fea], dim=1)
+        out = self.SE(x)
         return out
 
 
@@ -202,7 +201,7 @@ class Generator(nn.Module):
             self.dec['dec{}'.format(i)] = make_layer(_Residual_Block, num_layers, cc, cc-delta, upsample=i>num_blocks-num_scales-1)
             cc -= delta
             if i < num_blocks-1:
-                self.MixUp.append(MixUP(cc))
+                self.MixUp.append(MixUP(cc*2))
                 # self.fuse['fuse{}'.format(i)] = _Fuse_Block(cc, cc)
                
         self.tail = nn.Conv2d(ngf, 3, 3, 1, 1)
@@ -284,11 +283,11 @@ class Discriminator(nn.Module):
                                         nn.LeakyReLU(inplace=True), # hidden layer
                                         nn.Linear(64, 2),) # output layer
 
-        # build a 2-layer predictor
-        self.predictor = nn.Sequential(nn.Linear(in_features=64, out_features=256, bias=False),
-                                        nn.BatchNorm1d(256),
-                                        nn.LeakyReLU(inplace=True), # hidden layer
-                                        nn.Linear(256, 64)) # output layer
+        # # build a 2-layer predictor
+        # self.predictor = nn.Sequential(nn.Linear(in_features=64, out_features=256, bias=False),
+        #                                 nn.BatchNorm1d(256),
+        #                                 nn.LeakyReLU(inplace=True), # hidden layer
+        #                                 nn.Linear(256, 64)) # output layer
 
 
     def forward(self, x):
@@ -304,9 +303,9 @@ class Discriminator(nn.Module):
 
         out0_Vector = x    # Feature Vector
         out1_classfier = self.projecthead(x)  # 2 classfier
-        out2_predictor = self.predictor(x)    # simsiam
+        # out2_predictor = self.predictor(x)    # simsiam
 
-        return out0_Vector, out1_classfier, out2_predictor, fea
+        return out0_Vector, out1_classfier, fea
 
          
 

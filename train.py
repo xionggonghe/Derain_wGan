@@ -122,9 +122,9 @@ class ProgressMeter(object):
 
 
 def Count_GenAdversarialLoss(discriminator, gen_imgs, Rain_img, Norain_img):
-    Vector_gen, Classfier_gen, predictor_gen, fea_gen = discriminator(gen_imgs)
-    Vector_Rain, Classfier_Rain, predictor_Rain, fea_Rain = discriminator(Rain_img)
-    Vector_Norain, Classfier_Norain, predictor_Norain, fea_Norain = discriminator(Norain_img)
+    Vector_gen, Classfier_gen, fea_gen = discriminator(gen_imgs)
+    Vector_Rain, Classfier_Rain, fea_Rain = discriminator(Rain_img)
+    Vector_Norain, Classfier_Norain, fea_Norain = discriminator(Norain_img)
     Loss_VectorP = adversarial_loss[0](Vector_gen, Vector_Rain).sum(0)  # CosineSimilarity
     Loss_VectorN = adversarial_loss[0](Vector_gen, Vector_Rain).sum(0)  # CosineSimilarity
     Loss_Vector = Loss_VectorP / (Loss_VectorP + Loss_VectorN)
@@ -146,9 +146,9 @@ def Count_GenAdversarialLoss(discriminator, gen_imgs, Rain_img, Norain_img):
 
 
 def Count_DisAdversarialLoss(discriminator, gen_imgs, Rain_img, Norain_img):
-    Vector_gen, Classfier_gen, predictor_gen, fea_gen = discriminator(gen_imgs)
-    Vector_Rain, Classfier_Rain, predictor_Rain, fea_Rain = discriminator(Rain_img)
-    Vector_Norain, Classfier_Norain, predictor_Norain, fea_Norain = discriminator(Norain_img)
+    Vector_gen, Classfier_gen, fea_gen = discriminator(gen_imgs)
+    Vector_Rain, Classfier_Rain, fea_Rain = discriminator(Rain_img)
+    Vector_Norain, Classfier_Norain, fea_Norain = discriminator(Norain_img)
     Loss_VectorP = adversarial_loss[0](Vector_gen, Vector_Norain).sum(0)  # CosineSimilarity
     Loss_VectorN = adversarial_loss[0](Vector_gen, Vector_Rain).sum(0)  # CosineSimilarity
     Loss_Vector = Loss_VectorP / (Loss_VectorP + Loss_VectorN)
