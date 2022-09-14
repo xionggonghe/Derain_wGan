@@ -198,7 +198,7 @@ class Generator(nn.Module):
                                                     #  残差块              4               16    16+16                  i>3? True: false
             cc += delta
         #                           64     512            0.999
-        # self.memory = _Memory_Block(cc,   kdim,    moving_average_rate)
+        self.memory = _Memory_Block(cc,   kdim,    moving_average_rate)
         self.MixUp = nn.Sequential()
         self.dec = nn.ModuleDict()
         self.fuse = nn.ModuleDict()
@@ -221,7 +221,7 @@ class Generator(nn.Module):
             x = self.enc['enc{}'.format(i)](x)
             res.append(x)
         
-        # x, _ = self.memory(x)
+        x, _ = self.memory(x)
         
         res = res[::-1]
         x = self.dec['dec0'](x)

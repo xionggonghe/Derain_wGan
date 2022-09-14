@@ -29,7 +29,7 @@ NUM_EPOCHS = 500  # 训练周期
 patch_size = 128
 BATCH_SIZE = 16
 lr_G = 0.0001
-lr_D = 0.0002
+lr_D = 0.00015
 Weight = [0.05, 0.1, 0.2, 0.2, 0.2, 0.15, 0.15]
 model_dir = "./result/"
 
@@ -56,10 +56,10 @@ optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=lr_D)
 
 ######### Scheduler ###########
 warmup_epochs = 3
-schedulerGen = optim.lr_scheduler.ReduceLROnPlateau(optimizer_G, mode='max', factor=0.9, patience=15, verbose=True,
-                threshold=0.01, threshold_mode='abs', cooldown=3, min_lr=0, eps=1e-08)
-schedulerDis = optim.lr_scheduler.ReduceLROnPlateau(optimizer_D, mode='max', factor=0.9, patience=15, verbose=True,
-                threshold=0.01, threshold_mode='abs', cooldown=3, min_lr=0, eps=1e-08)
+schedulerGen = optim.lr_scheduler.ReduceLROnPlateau(optimizer_G, mode='max', factor=0.9, patience=20, verbose=True,
+                threshold=0.01, threshold_mode='abs', cooldown=5, min_lr=0, eps=1e-08)
+schedulerDis = optim.lr_scheduler.ReduceLROnPlateau(optimizer_D, mode='max', factor=0.9, patience=20, verbose=True,
+                threshold=0.01, threshold_mode='abs', cooldown=5, min_lr=0, eps=1e-08)
 # schedulerGen = optim.lr_scheduler.CosineAnnealingLR(optimizer_G, NUM_EPOCHS - warmup_epochs, eta_min=1e-6)
 # schedulerDis = optim.lr_scheduler.CosineAnnealingLR(optimizer_D, NUM_EPOCHS - warmup_epochs, eta_min=1e-6)
 
@@ -89,6 +89,9 @@ class AverageMeter(object):
         self.avg = 0
         self.sum = 0
         self.count = 0
+
+    def avg(self):
+        return self.avg
 
     def update(self, val, n=1):
         self.val = val
@@ -138,7 +141,7 @@ def Count_GenAdversarialLoss(discriminator, gen_imgs, Rain_img, Norain_img):
         Loss_feas = Loss_feas + Weight[i] * adversarial_loss[2](fea_gen[i], fea_Norain[i])  # L1Loss
 
     Loss_L1 = adversarial_loss[3](gen_imgs, Norain_img)
-    Loss = Loss_Vector + Loss_Classfier + Loss_feas + Loss_L1
+    Loss = Loss_Vector + Loss_Classfier + Loss_feas + 2*Loss_L1
     return Loss
 
 
@@ -160,11 +163,11 @@ def Count_DisAdversarialLoss(discriminator, gen_imgs, Rain_img, Norain_img):
     for i in range(len(fea_gen)):
         Loss_feas = Loss_feas - Weight[i] * adversarial_loss[2](fea_gen[i], fea_Norain[i].detach())  # L1Loss
 
-    Loss = Loss_Vector + Loss_Classfier + Loss_feas
+    Loss = Loss_Vector + 2*Loss_Classfier + Loss_feas
     return Loss
 
 # Tensorboard
-# images = torch.rand([3, 128, 128])
+# images = torch.rand([3, 128, 128]).to(device)
 
 writer = SummaryWriter('runs/experiment_1')
 # # create grid of images
@@ -172,7 +175,7 @@ writer = SummaryWriter('runs/experiment_1')
 # # write to tensorboard
 # writer.add_image('four_fashion_mnist_images', img_grid)
 
-images = torch.rand([1, 3, 128, 128])
+images = torch.rand([1, 3, 128, 128]).to(device)
 net = Generator().to(device)
 writer.add_graph(net, images)
 writer.close()
@@ -184,7 +187,7 @@ for epoch in range(1, NUM_EPOCHS):
     # lossesGen = AverageMeter('lossesGen', ':.4f')
     # lossesDis = AverageMeter('lossesDis', ':.4f')
     Psnr = AverageMeter('psnr', ':.3f')
-    Lr = AverageMeter('lr', ':.6f')
+    Lr = AverageMeter('lr', ':.8f')
 
     progress = ProgressMeter(
         len(train_loader),
@@ -239,17 +242,20 @@ for epoch in range(1, NUM_EPOCHS):
         schedulerGen.step(psnr)
         schedulerDis.step(psnr)
         with torch.no_grad():
-            writer.add_scalar('Gen loss',
+            writer.add_scalar('loss Gen',
                           g_loss,
                           epoch * len(train_loader) + i)
-            writer.add_scalar('Dis loss',
+            writer.add_scalar('loss Dis',
                               d_loss,
                               epoch * len(train_loader) + i)
-            writer.add_scalar('Gen Lr: ',
+            writer.add_scalar('Lr Gen: ',
                               optimizer_G.state_dict()['param_groups'][0]['lr'],
                               epoch * len(train_loader) + i)
-            writer.add_scalar('Dis Lr: ',
+            writer.add_scalar('Lr Dis: ',
                               optimizer_D.state_dict()['param_groups'][0]['lr'],
+                              epoch * len(train_loader) + i)
+            writer.add_scalar('PSNR: ',
+                              psnr,
                               epoch * len(train_loader) + i)
 
 
@@ -274,10 +280,10 @@ for epoch in range(1, NUM_EPOCHS):
                     psnr = PSNR(res, tar)
                     # print("PSNR: ", psnr)
                     psnr_val_rgb.append(psnr)
-            if epoch % 10 == 0:
-                torch.save({'state_dictG': generator.state_dict(),
-                            'state_dictD': discriminator.state_dict(),
-                            }, os.path.join(model_dir, "model2_{}.pth".format(epoch)))
+        if epoch % 10 == 0:
+            torch.save({'state_dictG': generator.state_dict(),
+                        'state_dictD': discriminator.state_dict(),
+                        }, os.path.join(model_dir, "model_{}.pth".format(epoch)))
             print("----------------------------------------------")
 
 

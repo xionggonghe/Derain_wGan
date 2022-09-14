@@ -7,3 +7,6 @@
 		           Gen:  2,790,019 total parameters , 	Dis: 3,237,298 total parameters.
 		将upSample替换为膨胀卷积：
 			Gen:  2,856,979 total parameters. 	Dis: 3,237,298 total parameters.
+
+修改损失函数：（将upSample替换为膨胀卷积）
+包含memory bank :		Gen:  2,906,131 total parameters. 	Dis: 3,237,298 total parameters.
